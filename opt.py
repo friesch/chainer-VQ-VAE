@@ -13,9 +13,10 @@ length = 16000
 
 # parameters of VQ
 d = 256
-k = 384
+k = 128
 
 # parameters of Decoder(WaveNet)
+speaker_cond = True
 n_loop = 3
 n_layer = 10
 n_filter = 2

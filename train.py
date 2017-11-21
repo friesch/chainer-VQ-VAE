@@ -33,11 +33,25 @@ args = parser.parse_args()
 
 
 # setup dataset iterator
-preprocess = Preprocess(opt.data_format, opt.sr, opt.mu, opt.length)
+if opt.speaker_cond:
+    speakers = glob.glob(os.path.join(opt.root, 'wav48/*'))
+    n_speaker = len(speakers)
+    speaker_dic = {
+        os.path.basename(speaker): i for i, speaker in enumerate(speakers)}
+else:
+    n_speaker = None
+    speaker_dic = None
+
+preprocess = Preprocess(
+    opt.data_format, opt.sr, opt.mu, opt.length, speaker_dic)
+
 files = glob.glob(os.path.join(opt.root, 'wav48/*/*.wav'))
 data = chainer.datasets.TransformDataset(files, preprocess)
 
-train, valid = chainer.datasets.split_dataset(data, 40000)
+if opt.speaker_cond:
+    train, valid = chainer.datasets.split_dataset_random(data, 40000)
+else:
+    train, valid = chainer.datasets.split_dataset(data, 40000)
 
 # make directory of results
 result = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
@@ -45,13 +59,14 @@ os.mkdir(result)
 shutil.copy(__file__, os.path.join(result, __file__))
 shutil.copy('utils.py', os.path.join(result, 'utils.py'))
 shutil.copy('models.py', os.path.join(result, 'models.py'))
-shutil.copy('models.py', os.path.join(result, 'updaters.py'))
+shutil.copy('updaters.py', os.path.join(result, 'updaters.py'))
 shutil.copy('opt.py', os.path.join(result, 'opt.py'))
 shutil.copy('generate.py', os.path.join(result, 'generate.py'))
 
 # Model
 model = VAE(opt.d, opt.k, opt.n_loop, opt.n_layer, opt.n_filter, opt.mu,
-            opt.n_channel1, opt.n_channel2, opt.n_channel3, opt.beta, True)
+            opt.n_channel1, opt.n_channel2, opt.n_channel3,
+            opt.beta, n_speaker)
 
 # Optimizer
 optimizer = chainer.optimizers.Adam(opt.lr/len(args.gpus))
@@ -110,7 +125,7 @@ if args.resume:
     chainer.serializers.load_npz(args.resume, trainer)
 
 # run
-print('GPUs: {}'.format(*args.gpus))
+print('GPUs: {}'.format(args.gpus))
 print('# train: {}'.format(len(train)))
 print('# valid: {}'.format(len(valid)))
 print('# Minibatch-size: {}'.format(opt.batchsize))

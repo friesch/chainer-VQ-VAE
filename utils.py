@@ -26,12 +26,14 @@ class mu_law(object):
 
 
 class Preprocess(object):
-    def __init__(self, data_format, sr, mu, length, random=True):
+    def __init__(self, data_format, sr, mu, length,
+                 speaker_dic=None, random=True):
         self.data_format = data_format
         self.sr = sr
         self.mu = mu
         self.mu_law = mu_law(mu)
         self.length = length + 1
+        self.speaker_dic = speaker_dic
         self.random = random
 
     def __call__(self, path):
@@ -40,6 +42,11 @@ class Preprocess(object):
                                '_{}_norm.npy'.format(self.sr))
         qt_npy = path.replace('.{}'.format(self.data_format),
                               '_{}_{}_norm.npy'.format(self.sr, self.mu))
+        if self.speaker_dic is None:
+            speaker = [None]
+        else:
+            speaker = self.speaker_dic[os.path.basename(os.path.dirname(path))]
+
         if os.path.exists(raw_npy):
             raw = np.load(raw_npy)
             raw /= np.abs(raw).max()
@@ -76,7 +83,10 @@ class Preprocess(object):
         y = np.identity(self.mu)[qt].astype(np.float32)
         y = np.expand_dims(y.T, 2)
         t = np.expand_dims(qt.astype(np.int32), 1)
-        return raw[:, :-1, :], y[:, :-1, :], t[1:, :]
+        if self.speaker_dic is None:
+            return raw[:, :-1, :], y[:, :-1, :], t[1:, :]
+        else:
+            return raw[:, :-1, :], y[:, :-1, :], np.int32(speaker), t[1:, :]
 
     def read_file(self, path):
         x, sr = librosa.core.load(path, self.sr, res_type='kaiser_fast')
